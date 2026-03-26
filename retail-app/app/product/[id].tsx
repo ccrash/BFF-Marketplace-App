@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useMemo } from 'react'
+import { useEffect, useCallback, useRef, useState, useMemo } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -31,10 +31,17 @@ export default function ProductDetailScreen() {
 
   const [addedFeedback, setAddedFeedback] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (id) loadProduct(id)
   }, [id, loadProduct])
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    }
+  }, [])
 
   const isAddingToCart = loadingProductIds.includes(id ?? '')
   const outOfStock = product?.stock.available === 0
@@ -45,7 +52,7 @@ export default function ProductDetailScreen() {
     try {
       await addItem(product.id)
       setAddedFeedback(true)
-      setTimeout(() => setAddedFeedback(false), 2000)
+      feedbackTimerRef.current = setTimeout(() => setAddedFeedback(false), 2000)
     } catch (err) {
       setAddError((err as Error).message)
     }

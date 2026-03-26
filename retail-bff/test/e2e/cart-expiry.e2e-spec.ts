@@ -3,12 +3,10 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { CartExpiryService } from '../../src/cart/cart-expiry.service';
-import { StockService } from '../../src/stock/stock.service';
 
 describe('Cart expiry (E2E)', () => {
   let app: INestApplication;
   let cartExpiryService: CartExpiryService;
-  let stockService: StockService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -20,34 +18,34 @@ describe('Cart expiry (E2E)', () => {
     await app.init();
 
     cartExpiryService = app.get(CartExpiryService);
-    stockService = app.get(StockService);
+
+    // Fake timers must be activated AFTER app.init() so CartExpiryService.onModuleInit()
+    // creates a real interval handle. That handle can then be properly cleared by
+    // onModuleDestroy() once real timers are restored in afterEach.
+    jest.useFakeTimers();
   });
 
   afterEach(async () => {
+    // Restore real timers BEFORE app.close() so clearInterval in onModuleDestroy()
+    // uses the real implementation and can clear the real interval handle.
+    jest.useRealTimers();
     await app.close();
   });
 
-  it('marks cart as EXPIRED after 2 minutes of inactivity', () => {
-    jest.useFakeTimers();
-    return (async () => {
-      const { body: { cartId } } = await request(app.getHttpServer()).post('/cart').expect(201);
+  it('marks cart as EXPIRED after 2 minutes of inactivity', async () => {
+    const { body: { cartId } } = await request(app.getHttpServer()).post('/cart').expect(201);
 
-      // Advance time past the 2-minute inactivity window
-      jest.setSystemTime(Date.now() + 2 * 60 * 1000 + 1000);
+    // Advance time past the 2-minute inactivity window
+    jest.setSystemTime(Date.now() + 2 * 60 * 1000 + 1000);
 
-      // Trigger expiry check directly
-      cartExpiryService.releaseExpiredCarts();
+    // Trigger expiry check directly
+    cartExpiryService.releaseExpiredCarts();
 
-      // Cart should now return 410 Gone
-      await request(app.getHttpServer()).get(`/cart/${cartId}`).expect(410);
-
-      jest.useRealTimers();
-    })();
+    // Cart should now return 410 Gone
+    await request(app.getHttpServer()).get(`/cart/${cartId}`).expect(410);
   });
 
   it('releases reserved stock when cart expires', async () => {
-    jest.useFakeTimers();
-
     const { body: stockBefore } = await request(app.getHttpServer()).get('/products/prod_003');
     const availableBefore = stockBefore.stock.available;
 
@@ -68,13 +66,9 @@ describe('Cart expiry (E2E)', () => {
     // Stock should be restored
     const { body: after } = await request(app.getHttpServer()).get('/products/prod_003');
     expect(after.stock.available).toBe(availableBefore);
-
-    jest.useRealTimers();
   });
 
   it('expired cart cannot be mutated (returns 410)', async () => {
-    jest.useFakeTimers();
-
     const { body: { cartId } } = await request(app.getHttpServer()).post('/cart').expect(201);
 
     jest.setSystemTime(Date.now() + 3 * 60 * 1000);
@@ -84,7 +78,5 @@ describe('Cart expiry (E2E)', () => {
       .post(`/cart/${cartId}/items`)
       .send({ productId: 'prod_003', quantity: 1 })
       .expect(410);
-
-    jest.useRealTimers();
   });
 });

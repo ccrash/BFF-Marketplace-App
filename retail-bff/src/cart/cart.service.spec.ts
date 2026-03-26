@@ -52,6 +52,10 @@ describe('CartService', () => {
   let stockService: jest.Mocked<StockService>;
   let productsService: jest.Mocked<ProductsService>;
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
     stockService = makeStockService();
     productsService = makeProductsService();
@@ -95,7 +99,6 @@ describe('CartService', () => {
       cartService.addItem(cartId, 'prod_001', 1);
       const view = cartService.getCartView(cartId);
       expect(view.expiresAt.getTime()).toBeGreaterThan(originalExpiry.getTime());
-      jest.useRealTimers();
     });
 
     it('increments quantity for existing item', () => {

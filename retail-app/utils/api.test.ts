@@ -31,6 +31,7 @@ const mockFetchError = (status: number, message = `HTTP ${status}`) => {
 
 afterEach(() => {
   jest.resetAllMocks()
+  jest.useRealTimers()
   ;(global as any).fetch = undefined
 })
 
@@ -213,6 +214,5 @@ describe('network errors', () => {
     const assertion = expect(getProducts()).rejects.toMatchObject({ status: 0 })
     await jest.runAllTimersAsync()
     await assertion
-    jest.useRealTimers()
   })
 })
